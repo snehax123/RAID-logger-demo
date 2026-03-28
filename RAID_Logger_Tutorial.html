@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAID Logger — Tutorial</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.1);
+    --border-mid: rgba(0,0,0,0.18);
+    --text: #1a1a1a;
+    --text-muted: #6b6b6b;
+    --text-faint: #a0a0a0;
+    --blue-bg: #E6F1FB; --blue-mid: #378ADD; --blue-text: #0C447C;
+    --red-bg: #FCEBEB; --red-mid: #E24B4A; --red-text: #791F1F;
+    --amber-bg: #FAEEDA; --amber-mid: #EF9F27; --amber-text: #633806;
+    --green-bg: #EAF3DE; --green-mid: #639922; --green-text: #27500A;
+    --purple-bg: #EEEDFE; --purple-text: #534AB7;
+    --teal: #1D9E75;
+    --navy: #1a3a6b;
+    --r: 8px;
+    --rl: 12px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* TOP BAR */
+  .topbar {
+    background: var(--navy);
+    color: #fff;
+    padding: 14px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-title { font-size: 15px; font-weight: 500; letter-spacing: 0.01em; }
+  .topbar-meta { font-size: 12px; opacity: 0.6; font-family: 'DM Mono', monospace; }
+  .step-counter { font-size: 13px; font-weight: 500; opacity: 0.85; }
+
+  /* PROGRESS */
+  .progress-bar {
+    background: rgba(255,255,255,0.15);
+    height: 3px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #5DCAA5;
+    transition: width 0.4s ease;
+  }
+
+  /* MAIN LAYOUT */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 36px 24px 24px;
+  }
+
+  /* STEP DOTS */
+  .dots {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--border-mid);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+  .dot:hover { background: var(--blue-mid); transform: scale(1.3); }
+  .dot.done { background: var(--blue-mid); }
+  .dot.active { background: var(--teal); width: 24px; border-radius: 4px; }
+
+  /* STEP HEADER */
+  .step-hdr {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .step-badge {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--blue-bg);
+    color: var(--blue-text);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 500;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .step-title { font-size: 22px; font-weight: 500; line-height: 1.2; }
+  .step-sub { font-size: 14px; color: var(--text-muted); margin-top: 4px; }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--rl);
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .card-label {
+    font-size: 10px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  /* TIP BOX */
+  .tip {
+    background: #f0faf6;
+    border-left: 3px solid var(--teal);
+    border-radius: 0 var(--r) var(--r) 0;
+    padding: 11px 14px;
+    font-size: 13px;
+    color: #2d5a4a;
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+  .tip b { font-weight: 500; color: #1a3d30; }
+
+  .warn {
+    background: var(--red-bg);
+    border-left: 3px solid var(--red-mid);
+    border-radius: 0 var(--r) var(--r) 0;
+    padding: 11px 14px;
+    font-size: 13px;
+    color: var(--red-text);
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+  .warn b { font-weight: 500; }
+
+  /* EXCEL MOCKUP */
+  .xl-wrap {
+    background: #e8e7e3;
+    border-radius: var(--rl);
+    padding: 12px 12px 0;
+    margin-bottom: 14px;
+    overflow-x: auto;
+  }
+  .xl-tabs { display: flex; gap: 2px; flex-wrap: wrap; }
+  .xl-tab {
+    padding: 5px 12px;
+    font-size: 11px; font-weight: 500;
+    border-radius: 5px 5px 0 0;
+    border: 0.5px solid transparent;
+    background: #d0cfc8;
+    color: #6b6b6b;
+    white-space: nowrap;
+  }
+  .xl-tab.active { background: var(--surface); color: var(--text); border-color: var(--border); border-bottom-color: var(--surface); }
+  .xl-tab.t-red { background: #f5d5d5; color: #7a1a1a; }
+  .xl-tab.t-amb { background: #f5e0c0; color: #7a4a00; }
+  .xl-tab.t-blu { background: #c8dff5; color: #0a3060; }
+  .xl-tab.t-grn { background: #c8e8b8; color: #1a4a10; }
+  .xl-tab.t-gry { background: #dddbd3; color: #4a4a4a; }
+  .xl-sheet {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 0 var(--r) var(--r) var(--r);
+    overflow: hidden;
+  }
+  .xl-titlebar {
+    padding: 9px 14px;
+    font-size: 13px; font-weight: 500;
+    color: #fff;
+    background: var(--navy);
+  }
+  .xl-titlebar.red { background: #6b1515; }
+  .xl-titlebar.amb { background: #6b3e00; }
+  .xl-titlebar.blu { background: #0a2b5a; }
+  .xl-titlebar.grn { background: #183d10; }
+
+  .xl-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .xl-meta-cell {
+    padding: 7px 12px;
+    border-right: 0.5px solid var(--border);
+    font-size: 11px;
+  }
+  .xl-meta-cell:last-child { border-right: none; }
+  .xl-meta-lbl { color: var(--text-muted); margin-bottom: 3px; }
+  .xl-meta-val {
+    display: inline-block;
+    padding: 2px 7px;
+    background: var(--blue-bg);
+    color: var(--blue-text);
+    border: 0.5px solid #B5D4F4;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+  .xl-meta-val.hi { outline: 2px solid var(--amber-mid); outline-offset: 1px; }
+
+  table.xl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    table-layout: fixed;
+  }
+  table.xl th {
+    padding: 6px 8px;
+    border: 0.5px solid #B5D4F4;
+    background: var(--blue-bg);
+    color: var(--blue-text);
+    font-weight: 500;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  table.xl th.red { background: var(--red-bg); color: var(--red-text); border-color: #F7C1C1; }
+  table.xl th.amb { background: var(--amber-bg); color: var(--amber-text); border-color: #FAC775; }
+  table.xl th.grn { background: var(--green-bg); color: var(--green-text); border-color: #C0DD97; }
+  table.xl td {
+    padding: 6px 8px;
+    border: 0.5px solid var(--border);
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  table.xl td.auto { background: var(--green-bg); color: var(--green-text); font-weight: 500; }
+  table.xl td.calc { background: var(--purple-bg); color: var(--purple-text); }
+  table.xl td.drop { background: var(--amber-bg); color: var(--amber-text); }
+  table.xl td.empty { background: #fafaf8; color: var(--text-faint); font-style: italic; }
+  table.xl td.hi { background: #FFF8E0; outline: 2px solid var(--amber-mid); outline-offset: -1px; }
+  table.xl td.critical { background: var(--red-bg); color: var(--red-text); font-weight: 500; }
+  table.xl td.high { background: var(--amber-bg); color: var(--amber-text); font-weight: 500; }
+
+  /* ANNOTATION GRID */
+  .ann-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .ann-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 13px;
+  }
+  .ann-lbl {
+    font-size: 10px; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+  }
+  .ann-val { font-size: 13px; line-height: 1.5; color: var(--text); }
+
+  /* SCORE BANDS */
+  .score-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .score-cell {
+    border-radius: var(--r);
+    padding: 12px 8px;
+    text-align: center;
+  }
+  .sc-n { font-size: 18px; font-weight: 500; }
+  .sc-l { font-size: 11px; margin-top: 3px; }
+
+  /* LEGEND */
+  .legend {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .leg { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
+  .leg-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* DASHBOARD MOCKUP */
+  .dash-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px;
+  }
+  .dash-quad {
+    border-radius: var(--r);
+    padding: 10px 12px;
+  }
+  .dash-quad-title { font-size: 11px; font-weight: 500; margin-bottom: 8px; }
+  .dash-nums { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+  .dash-num { text-align: center; }
+  .dash-n { font-size: 20px; font-weight: 500; }
+  .dash-l { font-size: 10px; margin-top: 1px; }
+
+  /* CHECKLIST */
+  .checklist { list-style: none; }
+  .checklist li {
+    display: flex; gap: 10px;
+    padding: 8px 0;
+    border-bottom: 0.5px solid var(--border);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .checklist li:last-child { border-bottom: none; }
+  .check-num { font-weight: 500; color: var(--teal); min-width: 18px; }
+
+  /* NAV */
+  .nav {
+    display: flex; gap: 10px;
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 0.5px solid var(--border);
+  }
+  .nav button {
+    flex: 1; padding: 11px;
+    border-radius: var(--r);
+    font-size: 14px; font-weight: 500;
+    cursor: pointer;
+    border: 0.5px solid var(--border-mid);
+    background: transparent;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .nav button:hover { background: #f0efeb; }
+  .nav button:disabled { opacity: 0.3; cursor: default; }
+  .nav button.primary {
+    background: var(--navy);
+    color: #fff;
+    border-color: transparent;
+  }
+  .nav button.primary:hover { background: #0d2347; }
+
+  /* KEYBOARD HINT */
+  .key-hint {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 12px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* SLIDE TRANSITION */
+  .slide { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* FOOTER */
+  .footer {
+    text-align: center;
+    padding: 16px;
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: 'DM Mono', monospace;
+    border-top: 0.5px solid var(--border);
+    background: var(--surface);
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div class="topbar-title">RAID Logger — How to use this template</div>
+    <div class="topbar-meta">RAID_Logger_blue.xlsx</div>
+  </div>
+  <div class="step-counter" id="step-counter">Step 1 of 8</div>
+</div>
+<div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:12.5%"></div></div>
+
+<div class="main">
+  <div class="dots" id="dots"></div>
+  <div id="content" class="slide"></div>
+  <div class="key-hint">← → arrow keys to navigate</div>
+</div>
+
+<div class="footer">RAID Logger Tutorial &nbsp;·&nbsp; Use arrow keys or buttons to navigate</div>
+
+<script>
+const steps = [
+  {
+    title: "What is a RAID log?",
+    sub: "Overview of the workbook and its 6 sheets",
+    render() { return `
+      <div class="tip"><b>RAID</b> stands for Risks, Assumptions, Issues, and Decisions — a structured way to track everything that could affect your project in one place.</div>
+      <div class="xl-wrap">
+        <div class="xl-tabs">
+          <div class="xl-tab active">Dashboard</div>
+          <div class="xl-tab t-red">Risks</div>
+          <div class="xl-tab t-amb">Assumptions</div>
+          <div class="xl-tab t-blu">Issues</div>
+          <div class="xl-tab t-grn">Decisions</div>
+          <div class="xl-tab t-gry">Instructions</div>
+        </div>
+        <div class="xl-sheet">
+          <div class="xl-titlebar">RAID LOG — Executive Dashboard</div>
+          <div class="dash-grid">
+            <div class="dash-quad" style="background:var(--red-bg)">
+              <div class="dash-quad-title" style="color:var(--red-text)">Risks summary</div>
+              <div style="font-size:11px;color:#791F1F">Total · Open · Closed · Critical</div>
+            </div>
+            <div class="dash-quad" style="background:var(--amber-bg)">
+              <div class="dash-quad-title" style="color:var(--amber-text)">Assumptions summary</div>
+              <div style="font-size:11px;color:#633806">Total · Valid · Closed · Invalid</div>
+            </div>
+            <div class="dash-quad" style="background:var(--blue-bg)">
+              <div class="dash-quad-title" style="color:var(--blue-text)">Issues summary</div>
+              <div style="font-size:11px;color:#0C447C">Total · Open · Resolved · Escalated</div>
+            </div>
+            <div class="dash-quad" style="background:var(--green-bg)">
+              <div class="dash-quad-title" style="color:var(--green-text)">Decisions summary</div>
+              <div style="font-size:11px;color:#27500A">Total · Pending · Made · Deferred</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ann-grid">
+        <div class="ann-card"><div class="ann-lbl">Log entries on</div><div class="ann-val">Risks, Assumptions, Issues, Decisions tabs</div></div>
+        <div class="ann-card"><div class="ann-lbl">Never edit</div><div class="ann-val" style="color:#854F0B">Dashboard — it updates automatically</div></div>
+        <div class="ann-card"><div class="ann-lbl">Instructions tab</div><div class="ann-val">Built-in reference guide inside the workbook</div></div>
+        <div class="ann-card"><div class="ann-lbl">IDs are automatic</div><div class="ann-val">R-001, A-002… fill in as you add rows</div></div>
+      </div>`; }
+  },
+  {
+    title: "Setting up — header fields",
+    sub: "Fill these in on every tab before adding entries",
+    render() { return `
+      <div class="tip">Each of the 4 log sheets has the same 3 header fields at the top. Fill them in before you start logging entries.</div>
+      <div class="xl-wrap">
+        <div class="xl-tabs"><div class="xl-tab t-red active">Risks</div></div>
+        <div class="xl-sheet">
+          <div class="xl-titlebar red">RAID LOG TRACKER — Risks</div>
+          <div class="xl-meta">
+            <div class="xl-meta-cell">
+              <div class="xl-meta-lbl">Project Name:</div>
+              <div class="xl-meta-val hi">Website Relaunch</div>
+            </div>
+            <div class="xl-meta-cell">
+              <div class="xl-meta-lbl">Project Manager:</div>
+              <div class="xl-meta-val hi">Sarah Ahmed</div>
+            </div>
+            <div class="xl-meta-cell">
+              <div class="xl-meta-lbl">Last Updated:</div>
+              <div class="xl-meta-val hi">28/03/2026</div>
+            </div>
+          </div>
+          <div style="padding:8px 14px;font-size:11px;color:var(--text-muted)">↓ Entries start from row 6 onwards</div>
+        </div>
+      </div>
+      <div class="ann-grid">
+        <div class="ann-card"><div class="ann-lbl">Project Name</div><div class="ann-val">Your project title — fill in on every tab</div></div>
+        <div class="ann-card"><div class="ann-lbl">Project Manager</div><div class="ann-val">Name of the PM responsible for this log</div></div>
+        <div class="ann-card"><div class="ann-lbl">Last Updated</div><div class="ann-val">Update this date each session</div></div>
+        <div class="ann-card"><div class="ann-lbl">Note</div><div class="ann-val" style="color:#854F0B">Headers are independent per sheet — fill all 4</div></div>
+      </div>`; }
+  },
+  {
+    title: "Logging risks",
+    sub: "The Risks tab — fields and automatic scoring",
+    render() { return `
+      <div class="legend">
+        <div class="leg"><div class="leg-dot" style="background:var(--green-bg);border:0.5px solid #97C459"></div>Auto-filled</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--purple-bg);border:0.5px solid #AFA9EC"></div>Calculated</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--amber-bg);border:0.5px solid #EF9F27"></div>Dropdown</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--surface);border:0.5px solid var(--border-mid)"></div>Type freely</div>
+      </div>
+      <div class="xl-wrap">
+        <div class="xl-tabs"><div class="xl-tab t-red active">Risks</div></div>
+        <div class="xl-sheet">
+          <div class="xl-titlebar red">RAID LOG TRACKER — Risks</div>
+          <div style="overflow-x:auto">
+          <table class="xl">
+            <thead><tr>
+              <th class="red" style="width:52px">Risk ID</th>
+              <th class="red" style="width:75px">Category</th>
+              <th class="red" style="width:145px">Risk description</th>
+              <th class="red" style="width:64px">Likelihood (1–5)</th>
+              <th class="red" style="width:54px">Impact (1–5)</th>
+              <th class="red" style="width:52px">Score</th>
+              <th class="red" style="width:64px">Priority</th>
+              <th class="red" style="width:135px">Mitigation plan</th>
+              <th class="red" style="width:65px">Owner</th>
+              <th class="red" style="width:60px">Status</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td class="auto">R-001</td>
+                <td>Resource</td>
+                <td>Key developer leaves mid-project</td>
+                <td class="hi" style="text-align:center">4</td>
+                <td class="hi" style="text-align:center">5</td>
+                <td class="calc" style="text-align:center">20</td>
+                <td class="critical">Critical</td>
+                <td>Cross-train team, document all code</td>
+                <td>J. Smith</td>
+                <td class="drop">Open</td>
+              </tr>
+              <tr>
+                <td class="auto">R-002</td>
+                <td>Budget</td>
+                <td>Costs exceed approved budget</td>
+                <td style="text-align:center">3</td>
+                <td style="text-align:center">4</td>
+                <td class="calc" style="text-align:center">12</td>
+                <td class="high">High</td>
+                <td>Monthly reviews with sponsor</td>
+                <td>S. Ahmed</td>
+                <td class="drop">Active</td>
+              </tr>
+              <tr>
+                <td class="empty">auto</td><td class="empty">type here</td><td class="empty">describe the risk</td>
+                <td class="empty" style="text-align:center">1–5</td><td class="empty" style="text-align:center">1–5</td>
+                <td class="empty" style="text-align:center">auto</td><td class="empty">auto</td>
+                <td class="empty">your plan</td><td class="empty">name</td><td class="empty">select</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:500;margin-bottom:8px;color:var(--text)">Risk score bands (Likelihood × Impact)</div>
+      <div class="score-grid">
+        <div class="score-cell" style="background:var(--red-bg)"><div class="sc-n" style="color:var(--red-text)">15–25</div><div class="sc-l" style="color:#A32D2D">Critical</div></div>
+        <div class="score-cell" style="background:var(--amber-bg)"><div class="sc-n" style="color:var(--amber-text)">9–14</div><div class="sc-l" style="color:#854F0B">High</div></div>
+        <div class="score-cell" style="background:#FFF8E0"><div class="sc-n" style="color:#854F0B">4–8</div><div class="sc-l" style="color:#854F0B">Medium</div></div>
+        <div class="score-cell" style="background:var(--green-bg)"><div class="sc-n" style="color:var(--green-text)">1–3</div><div class="sc-l" style="color:var(--green-text)">Low</div></div>
+      </div>
+      <div class="tip"><b>Amber-highlighted cells</b> are where you type. Score and Priority calculate automatically.</div>`; }
+  },
+  {
+    title: "Logging assumptions",
+    sub: "The Assumptions tab",
+    render() { return `
+      <div class="tip"><b>Assumptions</b> are things you're treating as true but haven't confirmed. Track them so you catch problems early if they turn out to be wrong.</div>
+      <div class="xl-wrap">
+        <div class="xl-tabs"><div class="xl-tab t-amb active">Assumptions</div></div>
+        <div class="xl-sheet">
+          <div class="xl-titlebar amb">RAID LOG TRACKER — Assumptions</div>
+          <div style="overflow-x:auto">
+          <table class="xl">
+            <thead><tr>
+              <th class="amb" style="width:75px">Assumption ID</th>
+              <th class="amb" style="width:80px">Category</th>
+              <th class="amb" style="width:155px">Assumption description</th>
+              <th class="amb" style="width:130px">Impact if wrong</th>
+              <th class="amb" style="width:70px">Owner</th>
+              <th class="amb" style="width:68px">Due date</th>
+              <th class="amb" style="width:68px">Status</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td class="auto">A-001</td>
+                <td>Stakeholder</td>
+                <td>Sponsor available for weekly sign-offs</td>
+                <td>Delays to milestone approvals</td>
+                <td>S. Ahmed</td>
+                <td>04/04/2026</td>
+                <td class="drop" style="color:#185FA5;background:var(--blue-bg)">Under Review</td>
+              </tr>
+              <tr>
+                <td class="auto">A-002</td>
+                <td>Technical</td>
+                <td>Legacy API supports new integration</td>
+                <td>Full rebuild required</td>
+                <td>T. Okafor</td>
+                <td>15/04/2026</td>
+                <td class="drop" style="color:var(--green-text);background:var(--green-bg)">Valid</td>
+              </tr>
+              <tr>
+                <td class="empty">auto</td><td class="empty">type here</td><td class="empty">what you're assuming</td>
+                <td class="empty">what goes wrong if false</td><td class="empty">name</td><td class="empty">date</td><td class="empty">select</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+      <div class="ann-grid">
+        <div class="ann-card"><div class="ann-lbl">Status options</div><div class="ann-val">Under Review · Valid · Invalid · Closed</div></div>
+        <div class="ann-card"><div class="ann-lbl">Impact if wrong</div><div class="ann-val">Be specific — what would break or delay?</div></div>
+        <div class="ann-card"><div class="ann-lbl">Due date</div><div class="ann-val">When should this assumption be validated by?</div></div>
+        <div class="ann-card"><div class="ann-lbl">If it becomes Invalid</div><div class="ann-val" style="color:#854F0B">It likely needs logging as an Issue too</div></div>
+      </div>`; }
+  },
+  {
+    title: "Logging issues",
+    sub: "The Issues tab — active problems",
+    render() { return `
+      <div class="tip"><b>Issues are happening now.</b> Unlike risks (which might happen), issues are live problems actively affecting your project.</div>
+      <div class="xl-wrap">
+        <div class="xl-tabs"><div class="xl-tab t-blu active">Issues</div></div>
+        <div class="xl-sheet">
+          <div class="xl-titlebar blu">RAID LOG TRACKER — Issues</div>
+          <div style="overflow-x:auto">
+          <table class="xl">
+            <thead><tr>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:52px">Issue ID</th>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:75px">Category</th>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:145px">Issue description</th>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:60px">Severity</th>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:65px">Owner</th>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:68px">Date raised</th>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:75px">Target resolution</th>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:65px">Status</th>
+              <th style="background:var(--blue-bg);color:var(--blue-text);border-color:#B5D4F4;width:78px">Escalation</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td class="auto">I-001</td>
+                <td>Process</td>
+                <td>Design assets not delivered on time</td>
+                <td class="drop" style="color:var(--red-text);background:var(--red-bg)">High</td>
+                <td>L. Chen</td>
+                <td>22/03/2026</td>
+                <td>31/03/2026</td>
+                <td class="drop" style="color:var(--amber-text);background:var(--amber-bg)">In Progress</td>
+                <td class="drop" style="color:var(--blue-text);background:var(--blue-bg)">PM</td>
+              </tr>
+              <tr>
+                <td class="empty">auto</td><td class="empty">type here</td><td class="empty">describe the issue</td>
+                <td class="empty">select</td><td class="empty">name</td><td class="empty">date</td>
+                <td class="empty">date</td><td class="empty">select</td><td class="empty">select</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+      <div class="ann-grid">
+        <div class="ann-card"><div class="ann-lbl">Severity</div><div class="ann-val">High · Medium · Low</div></div>
+        <div class="ann-card"><div class="ann-lbl">Status options</div><div class="ann-val">Open · In Progress · Resolved · Closed</div></div>
+        <div class="ann-card"><div class="ann-lbl">Escalation levels</div><div class="ann-val">None · PM · Sponsor · Board</div></div>
+        <div class="ann-card"><div class="ann-lbl">Resolution description</div><div class="ann-val">Fill in once the issue is fixed and close it</div></div>
+      </div>`; }
+  },
+  {
+    title: "Logging decisions",
+    sub: "The Decisions tab — record what was decided and why",
+    render() { return `
+      <div class="tip"><b>Decisions</b> create a permanent record of what was chosen, why, and who made the call — invaluable for audits and project handovers.</div>
+      <div class="xl-wrap">
+        <div class="xl-tabs"><div class="xl-tab t-grn active">Decisions</div></div>
+        <div class="xl-sheet">
+          <div class="xl-titlebar grn">RAID LOG TRACKER — Decisions</div>
+          <div style="overflow-x:auto">
+          <table class="xl">
+            <thead><tr>
+              <th class="grn" style="width:65px">Decision ID</th>
+              <th class="grn" style="width:78px">Category</th>
+              <th class="grn" style="width:135px">Decision required / made</th>
+              <th class="grn" style="width:70px">Owner</th>
+              <th class="grn" style="width:68px">Date required</th>
+              <th class="grn" style="width:68px">Date made</th>
+              <th class="grn" style="width:110px">Options considered</th>
+              <th class="grn" style="width:130px">Decision & rationale</th>
+              <th class="grn" style="width:65px">Status</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td class="auto">D-001</td>
+                <td>Architecture</td>
+                <td>Choose front-end framework</td>
+                <td>T. Okafor</td>
+                <td>01/04/2026</td>
+                <td>28/03/2026</td>
+                <td>React, Vue, Angular</td>
+                <td>React — team familiarity, large ecosystem</td>
+                <td class="drop" style="color:var(--green-text);background:var(--green-bg)">Made</td>
+              </tr>
+              <tr>
+                <td class="empty">auto</td><td class="empty">type here</td><td class="empty">what needs deciding</td>
+                <td class="empty">name</td><td class="empty">deadline</td><td class="empty">actual date</td>
+                <td class="empty">list options</td><td class="empty">outcome + why</td><td class="empty">select</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+      <div class="ann-grid">
+        <div class="ann-card"><div class="ann-lbl">Status options</div><div class="ann-val">Pending · Made · Deferred · Cancelled</div></div>
+        <div class="ann-card"><div class="ann-lbl">Options considered</div><div class="ann-val">List all alternatives that were evaluated</div></div>
+        <div class="ann-card"><div class="ann-lbl">Date required vs date made</div><div class="ann-val">Reveals if decisions are being delayed</div></div>
+        <div class="ann-card"><div class="ann-lbl">Rationale</div><div class="ann-val" style="color:#1a4a10">Be specific about why — future teams will thank you</div></div>
+      </div>`; }
+  },
+  {
+    title: "Reading the dashboard",
+    sub: "Auto-calculated executive summary",
+    render() { return `
+      <div class="warn"><b>Never edit the Dashboard directly.</b> All numbers are formula-driven and update automatically when you change entries on the 4 log tabs.</div>
+      <div class="xl-wrap">
+        <div class="xl-tabs"><div class="xl-tab active">Dashboard</div></div>
+        <div class="xl-sheet">
+          <div class="xl-titlebar">RAID LOG — Executive Dashboard</div>
+          <div class="dash-grid">
+            <div class="dash-quad" style="background:var(--red-bg)">
+              <div class="dash-quad-title" style="color:var(--red-text)">Risks summary</div>
+              <div class="dash-nums">
+                <div class="dash-num"><div class="dash-n" style="color:var(--red-text)">2</div><div class="dash-l" style="color:#791F1F">Total</div></div>
+                <div class="dash-num"><div class="dash-n" style="color:var(--red-text)">1</div><div class="dash-l" style="color:#791F1F">Open</div></div>
+                <div class="dash-num"><div class="dash-n" style="color:var(--red-text)">1</div><div class="dash-l" style="color:#791F1F">Critical</div></div>
+              </div>
+            </div>
+            <div class="dash-quad" style="background:var(--amber-bg)">
+              <div class="dash-quad-title" style="color:var(--amber-text)">Assumptions summary</div>
+              <div class="dash-nums">
+                <div class="dash-num"><div class="dash-n" style="color:var(--amber-text)">2</div><div class="dash-l" style="color:#633806">Total</div></div>
+                <div class="dash-num"><div class="dash-n" style="color:var(--amber-text)">1</div><div class="dash-l" style="color:#633806">Review</div></div>
+                <div class="dash-num"><div class="dash-n" style="color:var(--amber-text)">1</div><div class="dash-l" style="color:#633806">Valid</div></div>
+              </div>
+            </div>
+            <div class="dash-quad" style="background:var(--blue-bg)">
+              <div class="dash-quad-title" style="color:var(--blue-text)">Issues summary</div>
+              <div class="dash-nums">
+                <div class="dash-num"><div class="dash-n" style="color:var(--blue-text)">1</div><div class="dash-l" style="color:#0C447C">Total</div></div>
+                <div class="dash-num"><div class="dash-n" style="color:var(--blue-text)">1</div><div class="dash-l" style="color:#0C447C">In Prog</div></div>
+                <div class="dash-num"><div class="dash-n" style="color:var(--blue-text)">0</div><div class="dash-l" style="color:#0C447C">Closed</div></div>
+              </div>
+            </div>
+            <div class="dash-quad" style="background:var(--green-bg)">
+              <div class="dash-quad-title" style="color:var(--green-text)">Decisions summary</div>
+              <div class="dash-nums">
+                <div class="dash-num"><div class="dash-n" style="color:var(--green-text)">1</div><div class="dash-l" style="color:#27500A">Total</div></div>
+                <div class="dash-num"><div class="dash-n" style="color:var(--green-text)">0</div><div class="dash-l" style="color:#27500A">Pending</div></div>
+                <div class="dash-num"><div class="dash-n" style="color:var(--green-text)">1</div><div class="dash-l" style="color:#27500A">Made</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="tip"><b>Share just the Dashboard tab</b> with stakeholders in meetings — instant project health at a glance, without exposing all the detail rows.</div>`; }
+  },
+  {
+    title: "Maintenance tips",
+    sub: "Keeping the log accurate week to week",
+    render() { return `
+      <div class="card">
+        <div class="card-label">Weekly review checklist</div>
+        <ul class="checklist">
+          <li><span class="check-num">1</span>Update the "Last Updated" date on each sheet you've changed</li>
+          <li><span class="check-num">2</span>Close any risks, assumptions or issues that have been resolved</li>
+          <li><span class="check-num">3</span>Check if any risks have materialised and should now be logged as issues</li>
+          <li><span class="check-num">4</span>Chase owners on any overdue due dates</li>
+          <li><span class="check-num">5</span>Review the Dashboard with your team in stand-ups</li>
+        </ul>
+      </div>
+      <div class="ann-grid">
+        <div class="ann-card"><div class="ann-lbl" style="color:#791F1F">Never delete rows</div><div class="ann-val">Deleting breaks the auto-ID sequence. Mark items Closed instead.</div></div>
+        <div class="ann-card"><div class="ann-lbl" style="color:#791F1F">Never edit IDs</div><div class="ann-val">R-001, A-002… are formula-driven — typing over them breaks them.</div></div>
+        <div class="ann-card"><div class="ann-lbl">Use the dropdowns</div><div class="ann-val">Status, Severity and Priority have validation — always click to select, don't type.</div></div>
+        <div class="ann-card"><div class="ann-lbl">Archive at milestones</div><div class="ann-val">Copy closed items to a separate workbook at key project milestones.</div></div>
+      </div>
+      <div class="tip" style="border-color:#378ADD;background:#EEF4FB;color:#0C447C"><b>That's everything!</b> You're ready to start using your RAID Logger. Open the workbook, fill in the header fields, and log your first entry.</div>`; }
+  }
+];
+
+let cur = 0;
+
+function render() {
+  const total = steps.length;
+  document.getElementById('step-counter').textContent = `Step ${cur+1} of ${total}`;
+  document.getElementById('progress-fill').style.width = `${((cur+1)/total)*100}%`;
+
+  const dots = document.getElementById('dots');
+  dots.innerHTML = steps.map((s,i) => `<button class="dot ${i<cur?'done':i===cur?'active':''}" onclick="go(${i})" title="${s.title}"></button>`).join('');
+
+  const s = steps[cur];
+  document.getElementById('content').innerHTML = `
+    <div class="step-hdr">
+      <div class="step-badge">${cur+1}</div>
+      <div><div class="step-title">${s.title}</div><div class="step-sub">${s.sub}</div></div>
+    </div>
+    ${s.render()}
+    <div class="nav">
+      <button onclick="go(${cur-1})" ${cur===0?'disabled':''}>← Back</button>
+      <button class="primary" onclick="go(${cur+1})" ${cur===total-1?'disabled':''}>${cur===total-1?'Finished':'Next →'}</button>
+    </div>`;
+  document.getElementById('content').classList.remove('slide');
+  void document.getElementById('content').offsetWidth;
+  document.getElementById('content').classList.add('slide');
+}
+
+function go(i) {
+  if (i < 0 || i >= steps.length) return;
+  cur = i;
+  render();
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') go(cur+1);
+  if (e.key === 'ArrowLeft') go(cur-1);
+});
+
+render();
+</script>
+</body>
+</html>
